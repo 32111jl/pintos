@@ -1,0 +1,170 @@
+			+-------------------------+
+			|        CS 318           |
+			| PROJECT 0: Getting Real |
+			|     DESIGN DOCUMENT     |
+			+-------------------------+
+				   
+---- AUTHOR ----
+
+>> Fill in your name and email address.
+
+Jonathan Liu <jliu299@jh.edu>
+
+---- PRELIMINARIES ----
+
+>> If you have any preliminary comments on your submission, notes for the
+>> TAs, or extra credit, please give them here.
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff.
+
+			     Booting Pintos
+			     ==============
+
+---- QUESTIONS ---- 
+>> Put the screenshots of Pintos running in src/p0.
+(see attached images in src/p0)
+
+>> A1: Is there any particular issue that you would like us to know?
+(N/A)
+
+			     Debugging
+			     =========
+
+---- QUESTIONS: BIOS ---- 
+>> B1: What is the first instruction that gets executed?
+The first instruction that gets executed is `0xffff0: ljmp   $0x3630,$0xf000e05b`.
+
+
+>> B2: At which physical address is this instruction located?
+The physical address of this instruction is `0xffff0`.
+
+
+>> B3: Can you guess why the first instruction is like this?
+I think this makes sense because the address `0xffff0` is the entry point for the BIOS, at the top of the 64kb space. So this is where the BIOS begins executing instructions.
+The `ljmp` instruction is a long jump that helps move control to the next stage of the boot process, to the current segment address `0x3630` and instruction pointer `0xf000e05b`.
+
+
+>> B4: What are the next three instructions?
+The next three instructions are:
+1. `0xfe05b: cmpw   $0x28,%cs:(%esi)`
+2. `0xfe062: jne    0xd241d0ad`
+3. `0xfe066: xor    %edx,%edx`
+
+
+---- QUESTIONS: BOOTLOADER ---- 
+>> B5: How does the bootloader read disk sectors? In particular, what BIOS interrupt is used?
+The bootloader reads disk sectors by calling `read_sector` (line 230 in `loader.S`), and this function uses the BIOS interrupt `int 0x13` to perform low-level tasks like reading/writing sectors on a disk.
+
+According to [Wikipedia](https://en.wikipedia.org/wiki/BIOS_interrupt_call), `0x13` is the interrupt vector `13h`, which is for low level disk services.
+
+
+>> B6: How does the bootloader decides whether it successfully finds the Pintos kernel?
+The bootloader decides whether it successfully finds the Pintos kernel by calling the `check_partition` function, which checks for one of three conditions:
+If the read result is:
+1. `0` - the partition is currently not being used
+2. `0x20` - the partition contains the Pintos kernel
+3. `0x80` - the partition is a bootable partition
+
+The bootloader first reads the Master Boot Record to find partition records, then checks each partition record using these conditions. If any partition satisfies the second condition, the bootloader will then load into memory and transfer control to the kernel.
+
+
+>> B7: What happens when the bootloader could not find the Pintos kernel?
+If the third condition is met after checking all partition records, the bootloader will divert to line 100, `no_such_drive` and `no_boot_partition`. These functions print a "Not found" message and the interrupt `0x18` is triggered, which will cause the bootloader to tell the BIOS that the startup failed.
+
+According to [Wikipedia](https://en.wikipedia.org/wiki/BIOS_interrupt_call), `0x18` is the interrupt vector `18h`, which is described as "no bootable disk was present".
+
+
+>> B8: At what point and how exactly does the bootloader transfer control to the Pintos kernel?
+If the Pintos kernel is found by the bootloader, it will first begin reading the kernel into memory starting at the address `0x2000` (line 163). It's saved in ELF format, and contains a header that contains the entry point address indicating where execution should begin. This pointer is located at address `0x18` (line 165).
+
+Going step by step through lines 163-168:
+The bootloader first moves `0x2000` into the `es` segment register, then reads the entry point address (offset `0x18` from the segment `0x2000`) from the kernel's ELF header and stores it in `%dx`. It then moves `dx` into the lower 2 bytes of the memory location `start` (as the offset) and `0x2000` is stored in the next 2 bytes of `start` (as the segment). Finally, the bootloader does a long jump that transfers control to the Pintos kernel.
+
+
+---- QUESTIONS: KERNEL ---- 
+>> B9: At the entry of pintos_init(), what is the value of expression init_page_dir[pd_no(ptov(0))] in hexadecimal format?
+Breakpoint 1, pintos_init () at ../../threads/init.c:78
+(gdb) p/x init_page_dir[pd_no(ptov(0))]
+=> 0xc000efef:  int3   
+=> 0xc000efef:  int3   
+$1 = 0x0
+
+In hexadecimal format, the value of `init_page_dir[pd_no(ptov(0))]` is `0x0`.
+
+
+>> B10: When palloc_get_page() is called for the first time,
+>> B10.1 what does the call stack look like?
+(gdb) backtrace
+#0  palloc_get_page (flags=(PAL_ASSERT | PAL_ZERO)) at ../../threads/palloc.c:112
+#1  0xc00203aa in paging_init () at ../../threads/init.c:168
+#2  0xc002031b in pintos_init () at ../../threads/init.c:100
+#3  0xc002013d in start () at ../../threads/start.S:180
+
+
+>> B10.2 what is the return value in hexadecimal format?
+(gdb) finish
+Run till exit from #0  palloc_get_page (flags=(PAL_ASSERT | PAL_ZERO)) at ../../threads/palloc.c:112
+=> 0xc00203aa <paging_init+17>: add    $0x10,%esp
+0xc00203aa in paging_init () at ../../threads/init.c:168
+Value returned is $1 = (void *) 0xc0101000
+
+The return value is a void pointer to the address `0xc0101000` of the allocated page in memory (`(void *) 0xc0101000`).
+
+
+>> B10.3 what is the value of expression init_page_dir[pd_no(ptov(0))] in hexadecimal format?
+(gdb) p/x init_page_dir[pd_no(ptov(0))]
+=> 0xc000ef8f:  int3   
+=> 0xc000ef8f:  int3   
+$2 = 0x0
+
+In hexadecimal format, the value of `init_page_dir[pd_no(ptov(0))]` is `0x0`.
+
+
+>> B11: When palloc_get_page() is called for the third time,
+>> B11.1 what does the call stack look like?
+(gdb) backtrace
+#0  palloc_get_page (flags=PAL_ZERO) at ../../threads/palloc.c:112
+#1  0xc0020a81 in thread_create (name=0xc002e895 "idle", priority=0, function=0xc0020eb0 <idle>, aux=0xc000efbc) at ../../threads/thread.c:178
+#2  0xc0020976 in thread_start () at ../../threads/thread.c:111
+#3  0xc0020334 in pintos_init () at ../../threads/init.c:119
+#4  0xc002013d in start () at ../../threads/start.S:180
+
+
+>> B11.2 what is the return value in hexadecimal format?
+(gdb) finish
+Run till exit from #0  palloc_get_page (flags=PAL_ZERO) at ../../threads/palloc.c:112
+=> 0xc0020a81 <thread_create+55>:       add    $0x10,%esp
+0xc0020a81 in thread_create (name=0xc002e895 "idle", priority=0, function=0xc0020eb0 <idle>, aux=0xc000efbc) at ../../threads/thread.c:178
+Value returned is $1 = (void *) 0xc0103000
+
+The return value is a void pointer to the address `0xc0103000` of the allocated page in memory (`(void *) 0xc0103000`).
+
+
+>> B11.3 what is the value of expression init_page_dir[pd_no(ptov(0))] in hexadecimal format?
+(gdb) p/x init_page_dir[pd_no(ptov(0))]
+=> 0xc000ef4f:  int3   
+=> 0xc000ef4f:  int3   
+$2 = 0x102027
+
+In hexadecimal format, the value of `init_page_dir[pd_no(ptov(0))]` is `0x102027`. It's been updated since the first call to `palloc_get_page()`.
+
+
+			     Kernel Monitor
+			     ==============
+
+---- DATA STRUCTURES ----
+
+>> C1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+---- ALGORITHMS ----
+>> C2: Explain how you read and write to the console for the kernel monitor.
+Taking a look at the tips and hints provided in the assignment description, I used `input_getc` from `devices/input.c` to read single chars from the keyboard. Each char is then printed to the console using `putc` from `lib/kernel/console.c`, until a newline is encountered or the 128-char buffer is filled.
+
+I decided to place my kernel monitor code in `threads/kmonitor.c` to better distinguish it from the current code in `threads/init.c`, and so I could add other functionality if needed later on.
+
+>> C3: Any additional enhancement you implement?
+I added a function to trim leading and trailing spaces, and also took a stab at the backspace functionality.

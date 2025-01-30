@@ -17,6 +17,7 @@
 #include "devices/rtc.h"
 #include "threads/interrupt.h"
 #include "threads/io.h"
+#include "threads/kmonitor.h"
 #include "threads/loader.h"
 #include "threads/malloc.h"
 #include "threads/palloc.h"
@@ -134,6 +135,7 @@ pintos_init (void)
     run_actions (argv);
   } else {
     // TODO: no command line passed to kernel. Run interactively 
+    interactive_kernel();
   }
 
   /* Finish up. */
