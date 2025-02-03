@@ -159,6 +159,8 @@ In hexadecimal format, the value of `init_page_dir[pd_no(ptov(0))]` is `0x102027
 >> C1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
+I didn't create any new structs/typedefs/enumerations, nor did I change any existing ones. I only introduced a primary function `interactive_kernel(void)` and some helpers (`read_line(char * buffer, size_t size)`, `trim_spaces(char * buffer)`).
+The purpose of the interactive kernel function is to provide the main interaction logic for the kernel monitor. `read_line` helps read a line of input from the user, limited to 128 chars, and `trim_spaces` removes leading/trailing spaces from a string.
 
 ---- ALGORITHMS ----
 >> C2: Explain how you read and write to the console for the kernel monitor.
